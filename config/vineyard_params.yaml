@@ -1,0 +1,29 @@
+# 葡萄园环境参数
+vineyard:
+  # 行参数
+  row:
+    spacing_min: 2.0     # 最小行距 (m)
+    spacing_max: 3.5     # 最大行距 (m)
+    spacing_default: 2.8 # 默认行距 (m)
+    length_max: 200.0    # 最大行长度 (m)
+
+  # 藤蔓/棚架
+  trellis:
+    post_spacing: 6.0    # 立柱间距 (m)
+    post_diameter: 0.08  # 立柱直径 (m)
+    trunk_diameter: 0.05 # 藤蔓主干直径 (m)
+
+  # 地头
+  headland:
+    width_min: 4.0       # 最小地头宽度 (m)
+
+  # 地形
+  terrain:
+    slope_max: 25.0      # 最大可作业坡度 (deg)
+    slope_reduce_speed: 15.0  # 开始降速的坡度 (deg)
+    slope_speed_factor: 0.5   # 坡度降速系数
+
+  # 土壤
+  soil:
+    moisture_safe_max: 0.35  # 安全湿度上限（体积含水率）
+    sinkage_torque_factor: 1.8  # 沉降扭矩异常系数

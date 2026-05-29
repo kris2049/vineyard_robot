@@ -1,0 +1,30 @@
+# 机器人本体参数
+robot:
+  # 底盘
+  chassis:
+    length: 1.2          # 米
+    width: 0.8           # 米
+    wheel_base: 0.9      # 轴距 (m)
+    track_width: 0.65    # 轮距 (m)
+    wheel_radius: 0.15   # 轮半径 (m)
+    max_speed: 2.0       # 最大速度 (m/s)
+    max_steering_angle: 35.0  # 最大转向角 (deg)
+
+  # 割草刀盘
+  mower:
+    cutting_width: 0.8   # 割幅 (m)
+    cutting_height_min: 0.03  # 最低割草高度 (m)
+    cutting_height_max: 0.15  # 最高割草高度 (m)
+    blade_rpm_max: 3000  # 刀盘最高转速
+
+  # 动力
+  power:
+    battery_capacity: 48.0   # kWh
+    nominal_voltage: 48.0    # V
+    low_battery_threshold: 0.15  # 15% 低电量阈值
+    charge_time_estimate: 4.0    # 估计充电时间 (h)
+
+  # 质量
+  mass:
+    curb_weight: 250.0   # 整备质量 (kg)
+    max_payload: 50.0    # 最大负载 (kg)

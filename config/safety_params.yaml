@@ -1,0 +1,43 @@
+# 安全参数
+safety:
+  # 紧急停止
+  e_stop:
+    response_time_ms: 100    # 急停响应时间
+    brake_distance_m: 0.5    # 最大制动距离
+
+  # 电子围栏
+  geofence:
+    enabled: true
+    margin_m: 1.0            # 围栏缓冲距离
+    violation_action: "e_stop"
+
+  # 碰撞避免
+  collision_avoidance:
+    enabled: true
+    min_distance_m: 0.3      # 最小安全距离
+    warning_distance_m: 1.0  # 预警距离
+    lidar_blind_zone_m: 0.15 # 激光雷达盲区
+
+  # 人员检测
+  human_detection:
+    enabled: true
+    detection_range_m: 10.0  # 检测范围
+    safety_zone_m: 3.0       # 警戒区半径（进入即停止）
+    confidence_threshold: 0.7 # 检测置信度阈值
+
+  # 定位安全
+  localization:
+    min_confidence: 0.6      # 最小定位置信度
+    degrade_speed_factor: 0.5 # 置信度不足时的降速系数
+
+  # 通信
+  communication:
+    max_latency_autonomous_ms: 500   # 自主模式最大延迟
+    max_latency_teleop_ms: 200       # 遥控模式最大延迟
+    loss_timeout_ms: 1000            # 通信中断超时
+
+  # 系统自检
+  startup_check:
+    timeout_s: 30            # 自检超时
+    required_sensors: ["lidar", "camera", "imu", "rtk_gps"]
+    required_actuators: ["drive_left", "drive_right", "blade_motor"]

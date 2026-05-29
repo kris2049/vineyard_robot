@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+venv/
+
+# ROS 2
+build/
+install/
+log/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# CodeGraph
+.codegraph/
+
+# pytest
+.pytest_cache/
+
+# Gazebo
+*.log
+
+# Hardware reference (vendor binaries, not source code)
+ESP32小车套件/
