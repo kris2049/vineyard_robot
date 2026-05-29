@@ -9,7 +9,15 @@ Autonomous vineyard mowing robot system (葡萄园自主割草机器人).
 ## Key Docs (read these first)
 - `PROJECT.md` — architecture, constraints, safety requirements
 - `AGENTS.md` — multi-agent Kanban workflow, file boundaries, review protocol
+- `COUNCIL.md` — LLM Council review & oversight system (multi-agent adversarial review)
+- `KNOWLEDGE.md` — project cognition & knowledge management at scale
 - `docs/plans/` — implementation plans
+- `docs/decisions/` — architecture decision records (ADR)
+
+## Session Start
+```bash
+./scripts/anchor.sh  # Cognitive anchor — project status, recent changes, CodeGraph sync
+```
 
 ## Project Structure
 ```
