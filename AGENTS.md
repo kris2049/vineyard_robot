@@ -1,206 +1,228 @@
-# AGENTS.md — Vineyard Mower Multi-Agent Kanban System
+# AGENTS.md — Vineyard Mower Multi-Agent Workflow
 
-> **版本**: 4.0.0
-> **适用范围**: Hermes Orchestrator + 6 Kanban Worker Profiles
-> **优先级**: 最高
-> **实现方式**: Hermes Kanban (`kanban_create` / `kanban_complete` / `kanban_block`)
-
----
-
-## 1. Agent Profile 体系
-
-| Profile | 角色 | SOUL.md | 子系统目录 | 安全等级 |
-|---------|------|---------|-----------|----------|
-| `parent_agent` | 编排者 (Orchestrator) | `~/.hermes/profiles/parent_agent/SOUL.md` | 全部（只读审查） | — |
-| `motion-control` | 运动控制 Worker | `~/.hermes/profiles/motion-control/SOUL.md` | `src/motion_control/` | ⚠️ 安全关键 |
-| `perception` | 感知 Worker | `~/.hermes/profiles/perception/SOUL.md` | `src/perception/` | ⚠️ 安全关键 |
-| `navigation` | 导航 Worker | `~/.hermes/profiles/navigation/SOUL.md` | `src/navigation/` | ⚠️ 安全关键 |
-| `mission-planner` | 任务规划 Worker | `~/.hermes/profiles/mission-planner/SOUL.md` | `src/mission_planner/` | 🔶 运行关键 |
-| `diagnostics` | 诊断 Worker | `~/.hermes/profiles/diagnostics/SOUL.md` | `src/diagnostics/` | 🔶 运行关键 |
-| `data-pipeline` | 数据管道 Worker | `~/.hermes/profiles/data-pipeline/SOUL.md` | `src/data_pipeline/` | 🔵 非关键 |
-
-每个 Worker Profile 的 SOUL.md 定义了其身份、子系统职责、编码规范、文件边界。
+> **版本**: 5.0.0
+> **适用范围**: Claude Code 多 Agent 协作
+> **优先级**: 最高 — 所有 Agent 必须遵守
+> **最后更新**: 2026-06-19
 
 ---
 
-## 2. 执行协议：Plan → Decompose → Dispatch → Review → Gate
+## 1. 角色体系
 
-```
-┌────────┐   ┌───────────┐   ┌───────────┐   ┌──────────┐   ┌────────┐
-│  Plan  │ → │ Decompose │ → │ Dispatch  │ → │  Review  │ → │  Gate  │
-│parent_ │   │ parent_   │   │ kanban_   │   │ parent_  │   │parent_ │
-│ agent  │   │ agent     │   │ create    │   │ agent    │   │ agent  │
-└────────┘   └───────────┘   └───────────┘   └──────────┘   └────────┘
-                                   │
-                                   ▼
-                          ┌─────────────────┐
-                          │  Kanban Worker   │
-                          │  (独立 Process)  │
-                          │  持久化·重启不丢  │
-                          └─────────────────┘
-```
+Vineyard Mower 项目采用**三角色分工**，角色不可兼任：
 
-| 阶段 | 执行者 | 工具 |
-|------|--------|------|
-| **Plan** | parent_agent | 编写 `docs/plans/` |
-| **Decompose** | parent_agent | 拆分为 Task，画依赖图 |
-| **Dispatch** | parent_agent | `kanban_create(assignee=<profile>)` |
-| **Implement** | Worker Profile | 自治执行，heartbeat 汇报 |
-| **Review** | parent_agent | 对照 PROJECT.md + 运行测试 |
-| **Gate** | parent_agent | PASS / REVISION (kanban_block) / ABORT |
+| 角色 | 标识 | 核心职责 | 写代码 | 审查 | Git |
+|------|------|----------|--------|------|-----|
+| **parent_agent** | 当前会话的主 agent | 开发基础设施 + 版本管理 + 最终 Gate | ❌ | Gate | ✅ |
+| **architect** | 自定义 agent (/architect) | 架构设计 + 技术决策 + Worker 审查 | ❌ | 深度审查 | ❌ |
+| **Worker** | 按需创建的子 agent | 实现业务代码 | ✅ | ❌ | ❌ |
 
----
+### 1.1 parent_agent（编排者）
 
-## 3. Plan 阶段（parent_agent）
+- 维护开发基础设施（审查系统、代码质量工具、CI）
+- 管理 Git 版本控制（创建仓库、提交、推送、分支）
+- 执行最终 Gate 判定（PASS / REVISE / ABORT）
+- 审查 architect 提交的设计方案和决策记录
+- 维护本文件（AGENTS.md）、PROJECT.md、COUNCIL.md、CLAUDE.md、config/*.yaml
+- **禁止**编写 src/ 业务代码
 
-计划模板见 [docs/plans/](../docs/plans/) 目录。每个计划必须指定每个 Task 分配给哪个 Worker Profile。
+### 1.2 architect（系统架构师）
 
----
+- 设计业务系统架构
+- 技术方案选型与决策
+- 编写实现计划 docs/plans/ 和架构决策记录 docs/decisions/
+- 审查 Worker 代码（架构维度、安全维度、质量维度）
+- 触发 LLM Council 深度审查（按 COUNCIL.md 条件）
+- 提交设计/审查结论给 parent_agent 做最终 Gate
+- **禁止**编写 src/ 业务代码
+- **禁止**操作 Git
 
-## 4. Dispatch 阶段（parent_agent）
+### 1.3 Worker（编码实现者）
 
-```python
-# 创建 Kanban 任务
-task = kanban_create(
-    title="motion-control: 实现差速运动学模块",
-    assignee="motion-control",
-    body="""
-## TASK
-实现 DifferentialDrive 类的 forward() 方法...
-
-## FILES
-- Create: src/motion_control/kinematics.py
-- Create: tests/unit/test_kinematics.py
-
-## VERIFICATION
-python3 -m pytest tests/unit/test_kinematics.py -v
-""",
-)
-
-# 有依赖关系时使用 parents
-task2 = kanban_create(
-    title="motion-control: 实现运动控制节点",
-    assignee="motion-control",
-    parents=[task1_id],  # 等 T1 完成后才调度
-    body="...",
-)
-```
-
-### 依赖图示例
-
-```
-T1: 运动学模块 (motion-control) ──→ T3: 控制节点 (motion-control)
-                                           │
-T2: 键盘遥操作 (motion-control) ──────────┘ (T1 和 T2 可并行)
-```
+- 在文件边界内实现业务代码
+- 确保测试覆盖达标
+- 完成编码后通知 architect 审查
+- **禁止**跨子系统目录写代码
+- **禁止**修改 AGENTS.md / PROJECT.md / COUNCIL.md / CLAUDE.md / config/*.yaml
+- **禁止**操作 Git
 
 ---
 
-## 5. Implement 阶段（Worker Profile）
+## 2. 执行协议
 
-Worker 自治执行。必须：
+### Phase 1: 设计
 
-- 读取 AGENTS.md + PROJECT.md + 自己的 SOUL.md
-- 严格按照文件边界操作
-- 定期 heartbeat 汇报进度
-- 完成后 `kanban_complete(summary=..., metadata={tests: ...})`
-- 需人工审查时 `kanban_block(reason="review-required: ...")`
+```
+你 (用户) <--> architect -- 讨论技术方案
+     architect -- 输出 docs/plans/<计划文档>
+     architect -- 输出 docs/decisions/<决策记录>
+          |
+          v
+     parent_agent -- Gate: 设计方案审查
+          |
+       +--+--+
+       |PASS | REVISE -> 退回 architect 修改
+       |     |
+       v     v
+    进入Phase2 返回修改
+```
 
-### Worker 完成格式
+### Phase 2: 实现与审查
 
-```python
-kanban_complete(
-    summary="实现差速运动学: DifferentialDrive + WheelVelocity, 5/5 tests pass",
-    metadata={
-        "changed_files": ["src/motion_control/kinematics.py", "tests/unit/test_kinematics.py"],
-        "tests_run": 5,
-        "tests_passed": 5,
-    },
-)
+```
+architect -- 拆解 Task -> Dispatch Worker
+     |
+     v
+Worker -- 实现代码 -> 通知 architect
+     |
+     v
+architect -- 审查 Worker 代码
+  |-- Tier 1: 自动 (lint + test)
+  |-- Tier 2: 架构审查（架构/安全/质量）
+  +-- Tier 3: Council 触发? -> 4 成员并行审查
+     |
+     v
+parent_agent -- 最终 Gate
+     |
+   +--+--+
+   |PASS | REVISE -> 退回
+   |     |
+   v     v
+ 提交   驳回
+```
+
+### Phase 3: 版本管理
+
+```
+parent_agent -- git add + git commit + git push
+     |
+     v
+你 (用户) -- 确认 / 打 tag / 部署
 ```
 
 ---
 
-## 6. Review 阶段（parent_agent）
+## 3. 文件边界
 
-### 6.1 审查维度
+### 3.1 按角色
 
-| 维度 | 对照 | 性质 |
-|------|------|------|
-| A: 安全 | PROJECT.md §3 | ⚠️ 硬关卡 |
-| B: 架构 | PROJECT.md §2 | ⚠️ 硬关卡 |
-| C: 计划 | Plan 文档 | ⚠️ 硬关卡 |
-| D: 质量 | 编码规范 | 软关卡 |
+| 角色 | 允许写入 | 禁止写入 |
+|------|----------|----------|
+| parent_agent | `.claude/`, `config/*.yaml`, `scripts/`, AGENTS.md, PROJECT.md, COUNCIL.md, CLAUDE.md, 任意 | `src/` 业务代码 |
+| architect | `docs/plans/`, `docs/decisions/`, `agents/` | `src/`, `config/`, AGENTS.md, PROJECT.md, COUNCIL.md, CLAUDE.md |
+| Worker | 归属子系统目录 (见 3.2) | 其他子系统, 根级文档, config |
 
-### 6.2 审查方法（强制执行）
+### 3.2 Worker 文件边界
+
+| Worker | 允许目录 | 禁止 |
+|--------|----------|------|
+| motion-control | `src/motion_control/`, `src/common/types/`, `tests/` | 其他 src/ |
+| perception | `src/perception/`, `src/common/types/`, `tests/` | 其他 src/ |
+| navigation | `src/navigation/`, `src/common/types/`, `tests/` | 其他 src/ |
+| mission-planner | `src/mission_planner/`, `src/common/types/`, `tests/` | 其他 src/ |
+| diagnostics | `src/diagnostics/`, `src/common/types/`, `tests/` | 其他 src/ |
+| data-pipeline | `src/data_pipeline/`, `src/common/types/`, `tests/` | 其他 src/ |
+
+---
+
+## 4. 审查体系
+
+### 4.1 分层审查模型 (Tiered Review)
 
 ```
-1. git diff 查看变更
-2. 对照 PROJECT.md 检查 A/B 维度
-3. 对照 Plan 检查 C 维度
-4. 阅读代码检查 D 维度
-5. ⚠️ python3 -m pytest tests/ -v （强制执行）
-6. 判定 PASS / REVISION / ABORT
+变更提交
+    |
+Tier 1 (自动) --- ruff lint + pytest         <- 每次必跑
+    |
+Tier 2 --- architect 架构审查                <- 每次必跑
+    |        |-- 架构合规 (PROJECT.md 2)
+    |        |-- 安全合规 (PROJECT.md 3 + 安全宪法)
+    |        |-- 计划对齐 (对应 docs/plans/)
+    |        +-- 质量要求 (测试 + 编码规范)
+    |
+Tier 3 --- LLM Council 4 成员并行审查        <- 条件触发
+    |        条件: 安全代码 / 跨接口 / 每5次
+    |
+Tier 4 --- 对抗审查 (红队->蓝队->裁判)       <- 安全关键变更
+    |
+    v
+parent_agent Gate -> git commit
 ```
 
----
+### 4.2 触发条件
 
-## 7. Gate 阶段（parent_agent）
+| Tier | 触发条件 | 执行者 |
+|------|----------|--------|
+| 1 | 每次 Worker 提交 | 自动化脚本 |
+| 2 | 每次 Worker 提交 | architect |
+| 3 | 安全关键代码 / `src/common/types/` 变更 / 跨接口变更 / 每5次提交 | architect -> parallel(Council) |
+| 4 | `src/motion_control/safety_limits.py` / 急停逻辑 / 新物理执行路径 | architect -> 对抗审查 |
 
-| 判定 | 条件 | 行为 |
-|------|------|------|
-| **PASS** | 四维通过 + 测试全绿 | 接受，进入下一 Task |
-| **REVISION** | 可修复问题 | `kanban_block(reason="revision-required: ...")` 驳回 |
-| **ABORT** | 安全违规 / 不可恢复 | 停止，上报用户 |
+### 4.3 LLM Council 成员
 
----
-
-## 8. Worker 文件边界
-
-| Worker Profile | 允许目录 | 禁止 |
-|---------------|---------|------|
-| `motion-control` | `src/motion_control/`, `src/common/types/`, `tests/`, `simulation/models/vineyard_mower/` | 其他 src/ |
-| `perception` | `src/perception/`, `src/common/types/`, `tests/`, `simulation/models/vineyard_mower/` (sensor 部分) | 其他 src/ |
-| `navigation` | `src/navigation/`, `src/common/types/`, `tests/` | 其他 src/ |
-| `mission-planner` | `src/mission_planner/`, `src/common/types/`, `tests/`, `simulation/worlds/` | 其他 src/ |
-| `diagnostics` | `src/diagnostics/`, `src/common/types/`, `tests/` | 其他 src/ |
-| `data-pipeline` | `src/data_pipeline/`, `src/common/types/`, `tests/` | 其他 src/ |
-
-所有 Worker 禁止修改：`AGENTS.md`, `PROJECT.md`, `config/*.yaml`, `docs/`。
+| 成员 | 视角 | 否决权 |
+|------|------|--------|
+| Security Sentinel | 安全不变量、急停路径、人员检测 | 一票否决 |
+| Architecture Guardian | 子系统边界、依赖图、接口规范 | 可被 parent_agent 覆盖 |
+| Quality Auditor | 测试覆盖率、代码质量 | 仅测试不足时 |
+| Integration Coordinator | 跨子系统接口兼容性 | breaking change 否决 |
 
 ---
 
-## 9. 并行规则
+## 5. 角色启动检查清单
 
-- 操作不同文件 → 可并行 dispatch
-- 共享 `src/common/types/` → 顺序执行，注明先后
-- 有数据依赖 → 使用 `parents=[...]` 链
+### 5.1 parent_agent 启动
 
----
+- [ ] 读取 CLAUDE.md -- 项目上下文
+- [ ] 读取 AGENTS.md -- 协作流程（本文档）
+- [ ] 读取 PROJECT.md -- 架构约束
+- [ ] 读取 COUNCIL.md -- 审查规范
+- [ ] `git log --oneline -5` -- 最近变更
+- [ ] `ls docs/plans/` -- 当前计划
+- [ ] 运行 `./scripts/anchor.sh`
 
-## 10. 特殊规则
+### 5.2 architect 启动 (/architect)
 
-- `config/*.yaml` 由 parent_agent 直接修改
-- parent_agent 禁止写 `src/` 代码
-- parent_agent Review 必须跑全量测试
-- 安全关键 Worker 的 Task 粒度 ≤ 50 行核心逻辑
+- [ ] 读取 PROJECT.md -- 系统架构
+- [ ] 读取 AGENTS.md -- 协作流程
+- [ ] 读取 COUNCIL.md -- 审查规范
+- [ ] 读取 KNOWLEDGE.md -- 知识管理
+- [ ] 读取 `docs/plans/` -- 当前计划
+- [ ] 读取 `docs/decisions/` -- 已有决策
 
----
+### 5.3 Worker 启动
 
-## 11. 启动检查清单
-
-### parent_agent
-- [ ] 读取 AGENTS.md + PROJECT.md
-- [ ] 读取自己的 SOUL.md
-- [ ] 确认所有 Worker Profile 存在 (`hermes profile list`)
-- [ ] 读取最新 `docs/plans/`
-
-### Worker Profile
-- [ ] 读取 AGENTS.md + PROJECT.md
-- [ ] 读取自己的 SOUL.md
-- [ ] 确认文件边界
-- [ ] `kanban_show` 检查任务状态
+- [ ] 读取 PROJECT.md -- 理解系统架构
+- [ ] 读取 AGENTS.md 3.2 -- 确认自己的文件边界
+- [ ] 读取归属子系统 agents/agent-<name>.md -- 编码规范
+- [ ] 确认测试框架可用: `python3 -m pytest --version`
 
 ---
 
-*本文件是项目 Agent 协作最高规范。所有 Profile 必须遵守。*
+## 6. 禁止规则
+
+违反以下任何一条立即 ABORT：
+
+1. parent_agent 不得写入 src/ 业务代码
+2. architect 不得写入 src/ 业务代码
+3. architect 不得操作 Git
+4. Worker 不得写入非归属目录
+5. Worker 不得修改 AGENTS.md / PROJECT.md / COUNCIL.md / CLAUDE.md / config/*.yaml
+6. 不得跳过审查直接提交代码
+7. 安全关键代码不得在没有测试覆盖的情况下提交
+8. 任何角色不得在未读取本文档的情况下执行任务
+
+---
+
+## 7. 紧急覆写
+
+在以下情况下可破例操作，但必须在 commit message 中注明理由，并在 docs/decisions/ 新增决策记录：
+
+- 安全漏洞需要立即修复
+- 项目基础设施故障
+- 用户明确指示
+
+---
+
+*本文件是 Vineyard Mower 项目多 Agent 协作的最高规范。所有 Agent 必须遵守。*
+*违反本文件规定的行为将被 ABORT。*
