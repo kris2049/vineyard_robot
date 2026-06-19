@@ -1,5 +1,8 @@
 # Vineyard Mower -- Project Context for Claude Code
 
+## For New Team Members
+New to the project? Read **`SETUP.md`** first -- it covers Claude Code setup, API key config, and tool installation in 5 minutes.
+
 ## Project
 Autonomous vineyard mowing robot system (葡萄园自主割草机器人).
 - ROS 2 + Gazebo simulation + Python/C++ components

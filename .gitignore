@@ -30,3 +30,6 @@ Thumbs.db
 
 # Hardware reference (vendor binaries, not source code)
 ESP32小车套件/
+
+# Claude Code - user-specific local overrides
+.claude/settings.local.json
